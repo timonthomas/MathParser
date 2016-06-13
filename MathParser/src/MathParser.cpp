@@ -3,11 +3,22 @@
 
 int main(int argc, char* argv[])
 {
-    ast_generator generator;
-    auto ast_root = generator.parse(std::string(argv[1]));    
+    if (argc == 1) {
+        cout << "input expected" << endl;
+    }
 
-	script sc;
-	sc.create(ast_root);
+    ast_generator ast_gen;
+    code_generator code_gen;
+    vm vm;
+
+    auto ast_root = ast_gen.parse(std::string(argv[1]));
+
+    if (ast_root) {
+        script sc = code_gen.create(ast_root);
+        vm.execute(sc);
+    }
+
+    cin.get();
     return 0;
 }
 

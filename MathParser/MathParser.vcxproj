@@ -145,12 +145,17 @@
     <Text Include="ReadMe.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="stdafx.h" />
-    <ClInclude Include="targetver.h" />
+    <ClCompile Include="src\ASTGenerator.cpp" />
+    <ClCompile Include="src\CodeGeneration.cpp" />
+    <ClCompile Include="src\MathParser.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="MathParser.cpp" />
-    <ClCompile Include="stdafx.cpp" />
+    <ClInclude Include="src\ASTGenerator.h" />
+    <ClInclude Include="src\CodeGeneration.h" />
+    <ClInclude Include="src\MathParser.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="makefile" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
