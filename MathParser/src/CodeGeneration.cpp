@@ -61,7 +61,7 @@ script code_generator::create(shared_ptr<node> root)
                 // if all arguments are visited then go up         
                 auto func_node = dynamic_pointer_cast<function_call_node>(next_node);
 
-                next_node = next_node->parent;
+                next_node = func_node->parent;
 
                 for (auto arg_node : func_node->arguments) {
                     if (find(begin(visited_nodes), end(visited_nodes), arg_node) == end(visited_nodes)) {
@@ -69,7 +69,7 @@ script code_generator::create(shared_ptr<node> root)
                     }
                 }
 
-                if (next_node == next_node->parent) {
+                if (next_node == func_node->parent) {
                     nodes.push(func_node);
                     go_up = true;
                 } else {

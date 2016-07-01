@@ -339,9 +339,7 @@ shared_ptr<node> ast_generator::get_next_statement(uint32_t& token_pos)
         assign_node->node_content = get_next_value(token_pos);
         assign_node->node_content->parent = assign_node;
         append_node(result, assign_node);
-    }
-
-    if (is_assignment(token_pos)) {
+    } else if (is_assignment(token_pos)) {
         auto assign_node = make_shared<assign_statement_node>();
         assign_node->variable_name = get_token_content(token_list[token_pos]);
 
@@ -351,9 +349,7 @@ shared_ptr<node> ast_generator::get_next_statement(uint32_t& token_pos)
         assign_node->node_content->parent = assign_node;
 
         result = assign_node;
-    }
-
-    if (is_function_call(token_pos)) {
+    } else if (is_function_call(token_pos)) {
         result = get_next_func_call(token_pos, true);
     }
 
