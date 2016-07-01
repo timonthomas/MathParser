@@ -214,6 +214,10 @@ bool ast_generator::tokenize_buffer() {
             token_list.push_back(token{ token_type::end_statement , pos, 1, line, line_pos });
             inc_pos();
             break;
+        case ',':
+            token_list.push_back(token{ token_type::argument_seperator , pos, 1, line, line_pos });
+            inc_pos();
+            break;
         case '=':
             token_list.push_back(token{ token_type::assignment , pos, 1, line, line_pos });
             inc_pos();
@@ -267,7 +271,6 @@ shared_ptr<node> ast_generator::create_ast()
 
     while (token_pos < token_list.size()) {
         auto& token = token_list[token_pos];
-        string content = get_token_content(token);
 
         switch (token.type)
         {
@@ -336,8 +339,6 @@ shared_ptr<node> ast_generator::get_next_statement(uint32_t& token_pos)
         assign_node->node_content = get_next_value(token_pos);
         assign_node->node_content->parent = assign_node;
         append_node(result, assign_node);
-
-        return result;
     }
 
     if (is_assignment(token_pos)) {
@@ -350,37 +351,59 @@ shared_ptr<node> ast_generator::get_next_statement(uint32_t& token_pos)
         assign_node->node_content->parent = assign_node;
 
         result = assign_node;
-
-        return result;
     }
 
-    return nullptr;
+    if (is_function_call(token_pos)) {
+        result = get_next_func_call(token_pos, true);
+    }
+
+    if (get_next_token(token_pos, 0).type == token_type::end_statement) {
+        ++token_pos;
+        return result;
+    } else {
+        // error
+        return nullptr;
+    }
 }
 
 shared_ptr<node> ast_generator::get_next_value(uint32_t& token_pos)
 {
+    unsigned int parent_count = 0;
+
     while (token_pos < token_list.size()) {
         auto& token = token_list[token_pos];
 
         switch (token.type)
         {
         case token_type::end_statement:
-            ++token_pos;
-
             while (op_stack.size() > 0) {
                 push_operator();
             }
-            return value_stack.top().second;
 
-            continue;
+            return value_stack.top().second;
+            break;
         case token_type::opadd:
         case token_type::opsub:
         case token_type::opmul:
         case token_type::opdiv:
         case token_type::opexp:
         case token_type::opmod:
+            add_operator(token);
+            ++token_pos;
+            continue;
         case token_type::pare_open:
+            parent_count++;
+            add_operator(token);
+            ++token_pos;
+            continue;
         case token_type::pare_close:
+            if (parent_count == 0) {
+                while (op_stack.size() > 0) {
+                    push_operator();
+                }
+
+                return value_stack.top().second;
+            }
             add_operator(token);
             ++token_pos;
             continue;
@@ -393,20 +416,71 @@ shared_ptr<node> ast_generator::get_next_value(uint32_t& token_pos)
             continue;
         }
         case token_type::identifier: {
-            shared_ptr<variable_node> new_variable = make_shared<variable_node>();
-            new_variable->name = get_token_content(token);
-            
-            value_stack.push(make_pair(token, new_variable));
-            ++token_pos;
+            if (is_function_call(token_pos)) {
+                value_stack.push(make_pair(token, get_next_func_call(token_pos, false)));
+            } else {
+                shared_ptr<variable_node> new_variable = make_shared<variable_node>();
+                new_variable->name = get_token_content(token);
+
+                value_stack.push(make_pair(token, new_variable));
+                ++token_pos;
+            }
             continue;
+        case token_type::argument_seperator:
+            while (op_stack.size() > 0) {
+                push_operator();
+            }
+
+            return value_stack.top().second;
         }
         default:
-            ++token_pos;
-            break;
+            // error
+            return nullptr;
         }
     }
 
+    // error
     return nullptr;
+}
+
+shared_ptr<node> ast_generator::get_next_func_call(uint32_t& token_pos, bool as_statement)
+{
+    shared_ptr<function_call_node> func_node;
+
+    if (as_statement) {
+        func_node = make_shared<function_call_statement_node>();
+    } else {
+        func_node = make_shared<function_call_node>();
+    }
+
+    func_node->function_name = get_token_content(token_list[token_pos]);
+
+    // jump before first argument
+    token_pos += 2;
+
+    while (true) {
+        auto arg_node = get_next_value(token_pos);
+
+        // attach func node as parent to the argument
+        append_node(func_node, arg_node);
+
+        func_node->arguments.push_back(arg_node);
+
+        auto next_token = get_next_token(token_pos, 0);
+
+        if (next_token.type == token_type::argument_seperator) {
+            // jump to next argument
+            ++token_pos;
+            continue;
+        } else if (next_token.type == token_type::pare_close) {
+            ++token_pos;
+            break;
+        } else {
+            // error
+        }
+    }
+
+    return func_node;
 }
 
 string ast_generator::get_token_content(token token) const
@@ -414,38 +488,61 @@ string ast_generator::get_token_content(token token) const
     return string(buffer, token.pos, token.len);
 }
 
-bool ast_generator::is_assignment(uint32_t offset) const
+bool ast_generator::is_function_call(uint32_t pos) const
 {
     bool result = true;
 
-    if (token_list[offset].type != token_type::identifier) {
+    if (token_list[pos].type != token_type::identifier) {
         result = false;
     }
 
-    if (token_list[offset + 1].type != token_type::assignment) {
+    if (token_list[pos + 1].type != token_type::pare_open) {
         result = false;
     }
 
     return result;
 }
 
-bool ast_generator::is_declaration(uint32_t offset) const
+bool ast_generator::is_assignment(uint32_t pos) const
 {
     bool result = true;
 
-    if (token_list[offset].type != token_type::identifier) {
-        result = false;
-    }    
-    
-    if (token_list[offset + 1].type != token_type::identifier) {
+    if (token_list[pos].type != token_type::identifier) {
         result = false;
     }
 
-    if (token_list[offset + 2].type != token_type::assignment) {
+    if (token_list[pos + 1].type != token_type::assignment) {
         result = false;
     }
 
     return result;
+}
+
+bool ast_generator::is_declaration(uint32_t pos) const
+{
+    bool result = true;
+
+    if (token_list[pos].type != token_type::identifier) {
+        result = false;
+    }    
+    
+    if (token_list[pos + 1].type != token_type::identifier) {
+        result = false;
+    }
+
+    if (token_list[pos + 2].type != token_type::assignment) {
+        result = false;
+    }
+
+    return result;
+}
+
+token& ast_generator::get_next_token(uint32_t pos, uint32_t offset)
+{
+    if (pos + offset < token_list.size()) {
+        return token_list[pos + offset];
+    }
+    return token_list.back();
 }
 
 shared_ptr<node> ast_generator::parse(string input) {

@@ -14,7 +14,8 @@ enum class node_type {
     assign_statement,
     declare_statement,
     variable,
-    function_call
+    function_call,
+    function_call_statement
 };
 
 enum class operator_code {
@@ -96,6 +97,24 @@ public:
     shared_ptr<node> next_node = nullptr;
 };
 
+class function_call_node : public node {
+public:
+    function_call_node() {
+        type = node_type::function_call;
+    }
+
+    string function_name;
+    vector<shared_ptr<node>> arguments;
+}; 
+
+class function_call_statement_node : public function_call_node {
+public:
+    function_call_statement_node() {
+        type = node_type::function_call_statement;
+    }
+    shared_ptr<node> next_node = nullptr;
+};
+
 enum class token_type {
     opadd,
     opsub,
@@ -110,6 +129,7 @@ enum class token_type {
     end_statement,
     pare_open,
     pare_close,
+    argument_seperator
 };
 
 struct token {
@@ -147,10 +167,13 @@ private:
     shared_ptr<node> create_ast();
     shared_ptr<node> get_next_statement(uint32_t& offset);
     shared_ptr<node> get_next_value(uint32_t& offset);
+    shared_ptr<node> get_next_func_call(uint32_t& offset, bool as_statement);
 
     string get_token_content(token token) const;
-    bool is_assignment(uint32_t offset) const;
-    bool is_declaration(uint32_t offset) const;
+    bool is_function_call(uint32_t pos) const;
+    bool is_assignment(uint32_t pos) const;
+    bool is_declaration(uint32_t pos) const;
+    token& get_next_token(uint32_t pos, uint32_t offset);
 public:
     shared_ptr<node> parse(std::string input);
 };
