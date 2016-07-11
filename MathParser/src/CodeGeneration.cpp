@@ -50,10 +50,29 @@ script code_generator::create(shared_ptr<node> root)
                 }
             }
 
+            if (next_node->type == node_type::declare_statement) {
+                auto declare_node = dynamic_pointer_cast<declare_statement_node>(next_node);
+
+                if (find(begin(visited_nodes), end(visited_nodes), declare_node->next_node) == end(visited_nodes)) {
+                    go_up = false;
+                    next_node = declare_node->next_node;
+                } else {
+                    nodes.push(declare_node);
+                    next_node = declare_node->parent;
+                }
+                continue;
+            }
+
             if (next_node->type == node_type::assign_statement) {
-                nodes.push(next_node);
-                next_node = dynamic_pointer_cast<assign_statement_node>(next_node)->next_node;
-                go_up = false;
+                auto assign_node = dynamic_pointer_cast<assign_statement_node>(next_node);
+
+                if (find(begin(visited_nodes), end(visited_nodes), assign_node->node_content) == end(visited_nodes)) {
+                    go_up = false;
+                    nodes.push(assign_node);
+                    next_node = assign_node->node_content;
+                } else {
+                    next_node = assign_node->parent;
+                }
                 continue;
             }
 
@@ -108,8 +127,6 @@ script code_generator::create(shared_ptr<node> root)
 
             if (next_node->type == node_type::declare_statement) {
                 auto declare_node = dynamic_pointer_cast<declare_statement_node>(next_node);
-
-                nodes.push(next_node);
                 next_node = declare_node->next_node;
                 continue;
             }
@@ -117,7 +134,12 @@ script code_generator::create(shared_ptr<node> root)
             if (next_node->type == node_type::assign_statement) {
                 auto assign_node = dynamic_pointer_cast<assign_statement_node>(next_node);
 
-                next_node = assign_node->node_content;
+                if (assign_node->next_node) {
+                    next_node = assign_node->next_node;
+                } else {
+                    nodes.push(assign_node);
+                    next_node = assign_node->node_content;
+                }
                 continue;
             }
 
@@ -177,11 +199,10 @@ script code_generator::create(shared_ptr<node> root)
             auto d_node = dynamic_pointer_cast<declare_statement_node>(next_node);
 
             variable_declaration new_variable;
-            new_variable.name = d_node->variable_name;
             new_variable.size = 4;
             new_variable.offset = result.variables.size() * 4;
 
-            result.variables.push_back(new_variable);
+            result.variables[d_node->variable_name] = new_variable;
             continue;
         }
 
@@ -189,15 +210,8 @@ script code_generator::create(shared_ptr<node> root)
             auto a_node = dynamic_pointer_cast<assign_statement_node>(next_node);
 
             // find variable declaration
-            auto var_dec_it = find_if(result.variables.begin(), result.variables.end(), [&](variable_declaration& dec) {
-                return dec.name == a_node->variable_name;
-            });
-
-            if (var_dec_it == result.variables.end()) {
-                // error
-            } else {
-                result.tasks.push_back(task(operator_code::store, var_dec_it->offset));
-            }
+            auto var_dec = result.variables[a_node->variable_name];
+            result.tasks.push_back(task(operator_code::load, var_dec.offset));
             continue;
         }
 
@@ -205,15 +219,8 @@ script code_generator::create(shared_ptr<node> root)
             auto v_node = dynamic_pointer_cast<variable_node>(next_node);
 
             // find variable declaration
-            auto var_dec_it = find_if(result.variables.begin(), result.variables.end(), [&](variable_declaration& dec) {
-                return dec.name == v_node->name;
-            });
-
-            if (var_dec_it == result.variables.end()) {
-                // error
-            } else {
-                result.tasks.push_back(task(operator_code::load, var_dec_it->offset));
-            }
+            auto var_dec = result.variables[v_node->name];
+            result.tasks.push_back(task(operator_code::load, var_dec.offset));
             continue;
         }
 
@@ -231,6 +238,15 @@ script code_generator::create(shared_ptr<node> root)
             continue;
         }
 
+        case node_type::function_call: {
+            auto call_node = dynamic_pointer_cast<function_call_node>(next_node);
+
+            // find variable declaration
+            auto func_dec = result.functions[call_node->function_name];
+            result.tasks.push_back(task(operator_code::call, func_dec.position));
+            continue;
+        }
+
         default:
             break;
         }
@@ -238,7 +254,7 @@ script code_generator::create(shared_ptr<node> root)
     }
 
     for (auto var : result.variables) {
-        result.tasks.push_back(task(operator_code::load, var.offset));
+        result.tasks.push_back(task(operator_code::load, var.second.offset));
         result.tasks.push_back(task(operator_code::print));
     }
 

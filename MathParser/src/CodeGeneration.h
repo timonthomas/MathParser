@@ -52,9 +52,15 @@ struct type_declaration {
 };
 
 struct variable_declaration {
-    string name;
     uint32_t size;
     uint32_t offset;
+}; 
+
+struct function_declaration {
+    uint32_t argument_count;
+    uint32_t argument_size;
+    uint32_t return_size;
+    uint32_t position;
 };
 
 class script {
@@ -64,7 +70,8 @@ public:
 	void reset();
 	void create(shared_ptr<node> root);
 protected:
-    vector<variable_declaration> variables;
+    map<string, variable_declaration> variables;
+    map<string, function_declaration> functions;
     vector<task> tasks;
 };
 

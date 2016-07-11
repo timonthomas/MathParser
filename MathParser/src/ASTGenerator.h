@@ -30,7 +30,8 @@ enum class operator_code {
     print,
     halt,
     store,
-    load
+    load,
+    call
 };
 
 
